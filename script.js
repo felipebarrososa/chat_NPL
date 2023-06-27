@@ -24,43 +24,79 @@ function sendMessage() {
     createMessage("user", message);
     inputField.value = "";
     inputField.focus();
-    setTimeout(sendAutomaticReply, 1000);
-  }
-}
 
-function sendAutomaticReply() {
-  var userMessage = getLastUserMessage();
-  var reply = getAutomaticReply(userMessage);
-  var decodedReply = decodeURIComponent(escape(reply));
-  createMessage("bot", decodedReply);
-}
-
-function getLastUserMessage() {
-  var messageElements = document.querySelectorAll(".user .message p");
-  var lastMessageElement = messageElements[messageElements.length - 1];
-  if (lastMessageElement) {
-    return lastMessageElement.innerText.toLowerCase();
-  }
-  return "";
-}
-
-function getAutomaticReply(userMessage) {
-    userMessage = userMessage.toLowerCase();
-    for (var i = 0; i < automaticReplies.length; i++) {
-      var keywords = automaticReplies[i].keywords;
-      var reply = automaticReplies[i].reply;
-      for (var j = 0; j < keywords.length; j++) {
-        var keyword = keywords[j].toLowerCase();
-        if (userMessage.includes(keyword)) {
-          return reply;
-        }
-      }
+    // Verifica se a mensagem está nas respostas automáticas pré-definidas
+    if (automaticReplies.hasOwnProperty(message)) {
+      var reply = automaticReplies[message];
+      //showBotTyping();
+      setTimeout(function () {
+        createMessage("bot", reply);
+      }, 1000);
+    } else {
+     // showBotTyping();
+      sendToOpenAI(message);
     }
-    return "Desculpe, não entendi. Poderia reformular a pergunta?";
   }
-  
+}
+
+function sendToOpenAI(message) {
+  const options = {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer SUA-CHAVE-API' // Chave de API do OpenAI
+    },
+    body: JSON.stringify({
+      "model": "gpt-3.5-turbo",
+      "messages": [
+        //{"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": message}
+      ]
+    })
+  };
+
+  showBotTyping(); // Mostra a animação antes de enviar a requisição
+
+  fetch('https://api.openai.com/v1/chat/completions', options)
+    .then((response) => response.json())
+    .then((data) => {
+      var reply = data.choices[0].message.content;
+      createMessage("bot", reply); // Cria a mensagem do bot após receber a resposta
+    })
+    .catch((err) => {
+      console.error(err);
+    });
+}
+
+
+function showBotTyping() {
+  var typingIndicator = document.createElement("div");
+  typingIndicator.classList.add("message", "bot");
+
+  var typingAnimation = document.createElement("div");
+  typingAnimation.classList.add("typing-animation");
+
+  for (var i = 0; i < 3; i++) {
+    var dot = document.createElement("div");
+    dot.classList.add("dot");
+    typingAnimation.appendChild(dot);
+  }
+
+  typingIndicator.appendChild(typingAnimation);
+  messagesContainer.appendChild(typingIndicator);
+  messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+function removeBotTyping() {
+  var typingIndicator = messagesContainer.querySelector(".typing-animation");
+  if (typingIndicator) {
+    typingIndicator.parentNode.remove();
+  }
+}
 
 function createMessage(sender, content) {
+  removeBotTyping();
+
   var messageContainer = document.createElement("div");
   messageContainer.classList.add("message", sender);
 
@@ -71,6 +107,11 @@ function createMessage(sender, content) {
   messagesContainer.appendChild(messageContainer);
 
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
+  
+  // Verifica se o remetente é o bot e remove a animação de digitação
+  if (sender === "bot") {
+    removeBotTyping();
+  }
 }
 
 chatButton.addEventListener("click", toggleChat);
@@ -81,3 +122,6 @@ inputField.addEventListener("keydown", function (event) {
     sendMessage();
   }
 });
+
+inputField.value = "";
+inputField.focus();
